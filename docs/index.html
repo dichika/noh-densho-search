@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>能伝書 全文検索</title>
+<style>
+  :root {
+    --bg: #f6f1e6;
+    --bg-elev: #fffdf8;
+    --text: #2b2520;
+    --text-dim: #6b6155;
+    --border: #ded2ba;
+    --accent: #7a5230;
+    --accent-text: #fffdf8;
+    --mark-bg: #f2cf5b;
+    --mark-text: #2b2520;
+    --shadow: 0 1px 4px rgba(43, 37, 32, 0.12);
+    --overlay-bg: rgba(20, 17, 14, 0.94);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1815;
+      --bg-elev: #26221d;
+      --text: #eae2d3;
+      --text-dim: #a89e8c;
+      --border: #443c31;
+      --accent: #d3ad7c;
+      --accent-text: #1b1815;
+      --mark-bg: #8a6d1f;
+      --mark-text: #fff7e0;
+      --shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      --overlay-bg: rgba(0, 0, 0, 0.96);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+  }
+  body {
+    font-family: "Yu Mincho", "游明朝", "Hiragino Mincho ProN", "ヒラギノ明朝 ProN",
+      -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP",
+      sans-serif;
+    line-height: 1.7;
+    -webkit-text-size-adjust: 100%;
+  }
+  body.no-scroll { overflow: hidden; }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 12px 32px;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px 12px;
+  }
+  header .header-inner {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.15rem;
+    margin: 0 0 2px;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+  .site-desc {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin: 0 0 10px;
+  }
+  .search-box {
+    position: relative;
+  }
+  input[type="search"] {
+    width: 100%;
+    font-size: 1rem;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-elev);
+    color: var(--text);
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  input[type="search"]::placeholder { color: var(--text-dim); }
+  input[type="search"]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .result-count {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    min-height: 1.1em;
+  }
+  main {
+    padding-top: 14px;
+  }
+  .card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+  .card h3 {
+    margin: 0 0 4px;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .meta {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 2px;
+  }
+  .meta-sub {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .excerpt, .snippet {
+    font-size: 0.88rem;
+    margin: 0 0 8px;
+    word-break: break-word;
+  }
+  .detail-link {
+    display: inline-block;
+    font-size: 0.8rem;
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    background: var(--accent);
+    color: var(--accent-text);
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+    letter-spacing: 0.04em;
+  }
+  mark {
+    background: var(--mark-bg);
+    color: var(--mark-text);
+    padding: 0 1px;
+    border-radius: 2px;
+  }
+  .page-card-head {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+  .thumb {
+    width: 84px;
+    height: auto;
+    flex: none;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    background: var(--bg);
+    display: block;
+  }
+  .page-card-info { min-width: 0; }
+  .doc-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+    word-break: break-word;
+  }
+  .page-num {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+  ul.lines {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  ul.lines li {
+    border-top: 1px dashed var(--border);
+    padding: 8px 0;
+  }
+  ul.lines li:first-child { border-top: none; padding-top: 0; }
+  .line-text {
+    display: block;
+    font-size: 0.92rem;
+    margin-bottom: 6px;
+  }
+  .line-img-btn {
+    font-size: 0.74rem;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 4px 9px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .line-img-btn:active { opacity: 0.7; }
+  .line-img-slot {
+    margin-top: 8px;
+    max-height: 60vh;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+  }
+  .line-img-slot[hidden] { display: none; }
+  .line-img-slot img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+  }
+  .more-lines {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+  .state-msg {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    padding: 40px 10px;
+  }
+  .state-msg.error { color: #a4402e; }
+  @media (prefers-color-scheme: dark) {
+    .state-msg.error { color: #e28a75; }
+  }
+
+  /* overlay */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay-bg);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+  }
+  .overlay[hidden] { display: none; }
+  .overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    color: #f2ece0;
+    flex: none;
+  }
+  .overlay-title {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    padding-right: 10px;
+  }
+  #overlayClose {
+    flex: none;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.4);
+    color: #f2ece0;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .overlay-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 4px;
+  }
+  .overlay-body img {
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    display: block;
+  }
+  .overlay-footer {
+    flex: none;
+    padding: 10px 14px 18px;
+    text-align: center;
+  }
+  .overlay-footer a {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--accent-text);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 9px 18px;
+    border-radius: 999px;
+  }
+
+  footer {
+    max-width: 720px;
+    margin: 24px auto 0;
+    padding: 16px 12px 40px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+  }
+  footer p { margin: 0 0 8px; }
+  footer a { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>能伝書 全文検索</h1>
+    <p class="site-desc">能楽伝書のくずし字OCRテキストをスマートフォンから横断検索できます。</p>
+    <div class="search-box">
+      <input type="search" id="searchInput" placeholder="例: 序破急 花伝" autocomplete="off" aria-label="検索キーワード">
+    </div>
+    <div class="result-count" id="resultCount"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <main id="results">
+    <div class="state-msg" id="initialMsg">読み込み中…</div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="overlay-header">
+    <div class="overlay-title" id="overlayTitle"></div>
+    <button type="button" id="overlayClose" aria-label="閉じる">✕</button>
+  </div>
+  <div class="overlay-body">
+    <img id="overlayImg" alt="">
+  </div>
+  <div class="overlay-footer">
+    <a id="overlayViewerLink" href="#" target="_blank" rel="noopener noreferrer">公式ビューアで見る ↗</a>
+  </div>
+</div>
+
+<footer>
+  <p>画像・資料: 野上記念法政大学能楽研究所 能楽資料総合デジタルアーカイブ（<a href="https://nohken-digitalarchives.hosei.ac.jp/" target="_blank" rel="noopener noreferrer">https://nohken-digitalarchives.hosei.ac.jp/</a>）より IIIF で表示しています。</p>
+  <p>本文テキストは NDL古典籍OCR-Lite による機械翻刻であり、誤読を多く含みます。原典の確認には必ず画像またはアーカイブ本体をご参照ください。</p>
+  <p>OCR: NDL古典籍OCR-Lite（国立国会図書館, CC BY 4.0）</p>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var allData = null;
+  var resultsEl = document.getElementById("results");
+  var resultCountEl = document.getElementById("resultCount");
+  var searchInput = document.getElementById("searchInput");
+  var overlayEl = document.getElementById("overlay");
+  var overlayImg = document.getElementById("overlayImg");
+  var overlayTitle = document.getElementById("overlayTitle");
+  var overlayViewerLink = document.getElementById("overlayViewerLink");
+  var overlayCloseBtn = document.getElementById("overlayClose");
+
+  // ---------- 正規化 ----------
+
+  function normalize(str) {
+    if (!str) return "";
+    var n = String(str).normalize("NFKC");
+    n = n.replace(/[ァ-ヶ]/g, function (c) {
+      return String.fromCharCode(c.charCodeAt(0) - 0x60);
+    });
+    return n.toLowerCase();
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // 文字単位（コードポイント単位）で正規化前後の対応を保持し、
+  // ハイライト表示の際に元テキストへ位置を戻せるようにする。
+  function buildNormMap(str) {
+    var chars = Array.from(str || "");
+    var normChars = [];
+    var map = [];
+    chars.forEach(function (ch, idx) {
+      var n = ch.normalize("NFKC");
+      n = n.replace(/[ァ-ヶ]/g, function (c) {
+        return String.fromCharCode(c.charCodeAt(0) - 0x60);
+      });
+      n = n.toLowerCase();
+      for (var i = 0; i < n.length; i++) {
+        normChars.push(n[i]);
+        map.push(idx);
+      }
+    });
+    return { normStr: normChars.join(""), map: map, chars: chars };
+  }
+
+  function findRanges(normStr, map, terms) {
+    var ranges = [];
+    terms.forEach(function (term) {
+      if (!term) return;
+      var start = 0;
+      while (true) {
+        var idx = normStr.indexOf(term, start);
+        if (idx === -1) break;
+        var origStart = map[idx];
+        var origEnd = map[idx + term.length - 1] + 1;
+        ranges.push([origStart, origEnd]);
+        start = idx + 1;
+      }
+    });
+    ranges.sort(function (a, b) { return a[0] - b[0]; });
+    var merged = [];
+    ranges.forEach(function (r) {
+      var last = merged[merged.length - 1];
+      if (last && r[0] <= last[1]) {
+        last[1] = Math.max(last[1], r[1]);
+      } else {
+        merged.push(r.slice());
+      }
+    });
+    return merged;
+  }
+
+  // テキスト全体を<mark>付きHTMLに変換する
+  function highlightHTML(origText, terms) {
+    if (!origText) return "";
+    var m = buildNormMap(origText);
+    var ranges = findRanges(m.normStr, m.map, terms);
+    if (ranges.length === 0) return escapeHtml(origText);
+    var html = "";
+    var pos = 0;
+    ranges.forEach(function (r) {
+      html += escapeHtml(m.chars.slice(pos, r[0]).join(""));
+      html += "<mark>" + escapeHtml(m.chars.slice(r[0], r[1]).join("")) + "</mark>";
+      pos = r[1];
+    });
+    html += escapeHtml(m.chars.slice(pos).join(""));
+    return html;
+  }
+
+  // 最初のヒット位置の前後 context 文字を切り出してハイライトする（解題用スニペット）
+  function snippetHTML(origText, terms, context) {
+    context = context || 60;
+    if (!origText) return "";
+    var m = buildNormMap(origText);
+    var ranges = findRanges(m.normStr, m.map, terms);
+    if (ranges.length === 0) {
+      var head = m.chars.slice(0, 100).join("");
+      return escapeHtml(head) + (m.chars.length > 100 ? "…" : "");
+    }
+    var first = ranges[0];
+    var start = Math.max(0, first[0] - context);
+    var end = Math.min(m.chars.length, first[1] + context);
+    var html = "";
+    var pos = start;
+    ranges.forEach(function (r) {
+      if (r[1] <= start || r[0] >= end) return;
+      var cs = Math.max(r[0], start);
+      var ce = Math.min(r[1], end);
+      html += escapeHtml(m.chars.slice(pos, cs).join(""));
+      html += "<mark>" + escapeHtml(m.chars.slice(cs, ce).join("")) + "</mark>";
+      pos = ce;
+    });
+    html += escapeHtml(m.chars.slice(pos, end).join(""));
+    var prefix = start > 0 ? "…" : "";
+    var suffix = end < m.chars.length ? "…" : "";
+    return prefix + html + suffix;
+  }
+
+  // ---------- データ読み込み・前計算 ----------
+
+  function precompute(data) {
+    (data.documents || []).forEach(function (doc) {
+      doc._normTitle = normalize(doc.title);
+      doc._normCommentary = normalize(doc.commentary);
+      (doc.pages || []).forEach(function (page) {
+        (page.lines || []).forEach(function (line) {
+          line._norm = normalize(line.t);
+        });
+      });
+    });
+  }
+
+  function init() {
+    fetch("./data/index.json")
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        allData = data;
+        precompute(allData);
+        renderDocList();
+      })
+      .catch(function () {
+        showError();
+      });
+  }
+
+  function showError() {
+    resultCountEl.textContent = "";
+    resultsEl.innerHTML =
+      '<div class="state-msg error">index.json が見つかりません。<br>データファイルが未生成か、配置場所をご確認ください。</div>';
+  }
+
+  // ---------- 検索 ----------
+
+  function runSearch(query) {
+    var terms = normalize(query).trim().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return null;
+    var commentaryHits = [];
+    var pageHits = [];
+    allData.documents.forEach(function (doc) {
+      var combined = doc._normTitle + "\n" + doc._normCommentary;
+      var allIn = terms.every(function (t) { return combined.indexOf(t) !== -1; });
+      if (allIn) commentaryHits.push(doc);
+
+      (doc.pages || []).forEach(function (page) {
+        var hitLines = [];
+        (page.lines || []).forEach(function (line) {
+          var ok = terms.every(function (t) { return line._norm.indexOf(t) !== -1; });
+          if (ok) hitLines.push(line);
+        });
+        if (hitLines.length > 0) {
+          pageHits.push({ doc: doc, page: page, hitLines: hitLines });
+        }
+      });
+    });
+    return { terms: terms, commentaryHits: commentaryHits, pageHits: pageHits };
+  }
+
+  function handleSearch(query) {
+    if (!allData) return;
+    var trimmed = query.trim();
+    if (trimmed === "") {
+      renderDocList();
+      return;
+    }
+    var result = runSearch(trimmed);
+    renderSearchResults(result);
+  }
+
+  var debounceTimer = null;
+  searchInput.addEventListener("input", function () {
+    clearTimeout(debounceTimer);
+    var v = searchInput.value;
+    debounceTimer = setTimeout(function () { handleSearch(v); }, 300);
+  });
+
+  // ---------- 表示: 資料一覧（検索語なし） ----------
+
+  function renderDocList() {
+    var docs = allData.documents || [];
+    resultCountEl.textContent = docs.length + " 件の資料を収録しています";
+    if (docs.length === 0) {
+      resultsEl.innerHTML = '<div class="state-msg">収録された資料がありません。</div>';
+      return;
+    }
+    var html = docs.map(function (doc) {
+      var pageCount = (doc.pages || []).length;
+      var excerpt = (doc.commentary || "").slice(0, 100);
+      var more = (doc.commentary || "").length > 100 ? "…" : "";
+      return (
+        '<div class="card doc-card">' +
+        "<h3>" + escapeHtml(doc.title || "") + "</h3>" +
+        '<div class="meta">' + escapeHtml(doc.repository || "") +
+          (doc.collection ? " ・ " + escapeHtml(doc.collection) : "") + "</div>" +
+        '<div class="meta-sub">' +
+          (doc.code ? "整理番号: " + escapeHtml(doc.code) + " ・ " : "") +
+          "全" + pageCount + "コマ</div>" +
+        '<p class="excerpt">' + escapeHtml(excerpt) + more + "</p>" +
+        (doc.detailUrl
+          ? '<a class="detail-link" href="' + escapeHtml(doc.detailUrl) + '" target="_blank" rel="noopener noreferrer">資料詳細を見る ↗</a>'
+          : "") +
+        "</div>"
+      );
+    }).join("");
+    resultsEl.innerHTML = html;
+  }
+
+  // ---------- 表示: 検索結果 ----------
+
+  function renderSearchResults(result) {
+    var terms = result.terms;
+    var commentaryHits = result.commentaryHits;
+    var pageHits = result.pageHits;
+
+    if (pageHits.length === 0 && commentaryHits.length === 0) {
+      resultCountEl.textContent = "見つかりませんでした";
+      resultsEl.innerHTML = '<div class="state-msg">見つかりませんでした。キーワードを変えてお試しください。</div>';
+      return;
+    }
+
+    resultCountEl.textContent = pageHits.length + " ページがヒット";
+
+    var html = "";
+
+    commentaryHits.forEach(function (doc) {
+      html +=
+        '<div class="card commentary-card">' +
+        '<div class="badge">解題にヒット</div>' +
+        "<h3>" + highlightHTML(doc.title || "", terms) + "</h3>" +
+        '<div class="meta">' + escapeHtml(doc.repository || "") +
+          (doc.collection ? " ・ " + escapeHtml(doc.collection) : "") + "</div>" +
+        '<p class="snippet">' + snippetHTML(doc.commentary || "", terms) + "</p>" +
+        (doc.detailUrl
+          ? '<a class="detail-link" href="' + escapeHtml(doc.detailUrl) + '" target="_blank" rel="noopener noreferrer">資料詳細を見る ↗</a>'
+          : "") +
+        "</div>";
+    });
+
+    pageHits.forEach(function (hit, hitIdx) {
+      var doc = hit.doc;
+      var page = hit.page;
+      var lines = hit.hitLines;
+      var shown = lines.slice(0, 5);
+      var restCount = lines.length - shown.length;
+
+      var linesHtml = shown.map(function (line, lineIdx) {
+        var lineId = "l" + hitIdx + "_" + lineIdx;
+        return (
+          "<li>" +
+          '<span class="line-text">' + highlightHTML(line.t || "", terms) + "</span>" +
+          '<button type="button" class="line-img-btn" data-line-id="' + lineId + '">行の画像を見る</button>' +
+          '<div class="line-img-slot" id="slot_' + lineId + '" hidden></div>' +
+          "</li>"
+        );
+      }).join("") + (restCount > 0 ? '<li class="more-lines">他' + restCount + "行</li>" : "");
+
+      html +=
+        '<div class="card page-card" data-doc-idx="' + escapeHtml(String(doc.id)) + '" data-page-n="' + escapeHtml(String(page.n)) + '">' +
+        '<div class="page-card-head">' +
+        '<img class="thumb" loading="lazy" alt="' + escapeHtml(doc.title || "") + " " + escapeHtml(String(page.n)) + 'コマ目のサムネイル" src="' + escapeHtml(page.iiif) + 'full/400,/0/default.jpg" data-thumb-open="1">' +
+        '<div class="page-card-info">' +
+        '<div class="doc-title">' + escapeHtml(doc.title || "") + "</div>" +
+        '<div class="page-num">' + escapeHtml(String(page.n)) + " コマ目</div>" +
+        "</div>" +
+        "</div>" +
+        '<ul class="lines" data-hit-idx="' + hitIdx + '">' + linesHtml + "</ul>" +
+        "</div>";
+    });
+
+    resultsEl.innerHTML = html;
+
+    // 行画像ボタン・切り出しURLの計算に使う参照を保持
+    resultsEl.__pageHits = pageHits;
+  }
+
+  // ---------- 行の切り出し画像 ----------
+
+  function lineCropUrl(page, line) {
+    var pad = 10;
+    var b = line.b || [0, 0, 0, 0];
+    var x = b[0] - pad;
+    var y = b[1] - pad;
+    var w = b[2] + pad * 2;
+    var h = b[3] + pad * 2;
+    x = Math.max(0, x);
+    y = Math.max(0, y);
+    if (page.w && x + w > page.w) w = page.w - x;
+    if (page.h && y + h > page.h) h = page.h - y;
+    w = Math.max(1, Math.round(w));
+    h = Math.max(1, Math.round(h));
+    x = Math.round(x);
+    y = Math.round(y);
+    return page.iiif + x + "," + y + "," + w + "," + h + "/full/0/default.jpg";
+  }
+
+  // イベント委譲: 結果一覧内のクリックを処理
+  resultsEl.addEventListener("click", function (e) {
+    var thumb = e.target.closest("[data-thumb-open]");
+    if (thumb) {
+      var card = thumb.closest(".page-card");
+      openOverlayFromCard(card);
+      return;
+    }
+    var btn = e.target.closest(".line-img-btn");
+    if (btn) {
+      toggleLineImage(btn);
+      return;
+    }
+  });
+
+  function openOverlayFromCard(card) {
+    if (!card || !resultsEl.__pageHits) return;
+    var docId = card.getAttribute("data-doc-idx");
+    var pageN = card.getAttribute("data-page-n");
+    var hit = resultsEl.__pageHits.find(function (h) {
+      return String(h.doc.id) === docId && String(h.page.n) === pageN;
+    });
+    if (!hit) return;
+    openOverlay(hit.doc, hit.page);
+  }
+
+  function toggleLineImage(btn) {
+    var lineId = btn.getAttribute("data-line-id");
+    var slot = document.getElementById("slot_" + lineId);
+    if (!slot) return;
+    var ul = btn.closest("ul.lines");
+    var hitIdx = parseInt(ul.getAttribute("data-hit-idx"), 10);
+    var hit = resultsEl.__pageHits[hitIdx];
+    var lineIdx = Array.prototype.indexOf.call(
+      ul.querySelectorAll(".line-img-btn"),
+      btn
+    );
+    var line = hit.hitLines[lineIdx];
+
+    if (slot.hasAttribute("hidden")) {
+      if (!slot.dataset.loaded) {
+        var url = lineCropUrl(hit.page, line);
+        var img = document.createElement("img");
+        img.src = url;
+        img.alt = "該当行の切り出し画像";
+        slot.appendChild(img);
+        slot.dataset.loaded = "1";
+      }
+      slot.removeAttribute("hidden");
+      btn.textContent = "画像を閉じる";
+    } else {
+      slot.setAttribute("hidden", "");
+      btn.textContent = "行の画像を見る";
+    }
+  }
+
+  // ---------- 全画面オーバーレイ ----------
+
+  function openOverlay(doc, page) {
+    overlayImg.src = page.iiif + "full/1600,/0/default.jpg";
+    overlayImg.alt = doc.title + " " + page.n + "コマ目";
+    overlayTitle.textContent = doc.title + " ／ " + page.n + " コマ目";
+    overlayViewerLink.href = doc.viewerUrl || doc.detailUrl || "#";
+    overlayEl.removeAttribute("hidden");
+    document.body.classList.add("no-scroll");
+  }
+
+  function closeOverlay() {
+    overlayEl.setAttribute("hidden", "");
+    overlayImg.src = "";
+    document.body.classList.remove("no-scroll");
+  }
+
+  overlayCloseBtn.addEventListener("click", closeOverlay);
+  overlayEl.addEventListener("click", function (e) {
+    if (e.target === overlayEl || e.target.classList.contains("overlay-body")) {
+      closeOverlay();
+    }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !overlayEl.hasAttribute("hidden")) {
+      closeOverlay();
+    }
+  });
+
+  // ---------- 起動 ----------
+
+  init();
+})();
+</script>
+</body>
+</html>

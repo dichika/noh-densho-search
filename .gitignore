@@ -1,0 +1,13 @@
+# 中間データ（画像・OCR生出力はリポジトリに含めない）
+data/
+
+# OCRエンジン（cloneで再取得可能）
+tools/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
