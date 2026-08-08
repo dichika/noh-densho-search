@@ -200,6 +200,22 @@
     font-size: 0.92rem;
     margin-bottom: 6px;
   }
+  .line-badge {
+    display: inline-block;
+    font-size: 0.62rem;
+    line-height: 1.3;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-right: 6px;
+    vertical-align: text-top;
+    letter-spacing: 0.02em;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .line-badge-ai {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
   .line-img-btn {
     font-size: 0.74rem;
     background: none;
@@ -351,6 +367,7 @@
 <footer>
   <p>画像・資料: 野上記念法政大学能楽研究所 能楽資料総合デジタルアーカイブ（<a href="https://nohken-digitalarchives.hosei.ac.jp/" target="_blank" rel="noopener noreferrer">https://nohken-digitalarchives.hosei.ac.jp/</a>）より IIIF で表示しています。</p>
   <p>本文テキストは NDL古典籍OCR-Lite による機械翻刻であり、誤読を多く含みます。原典の確認には必ず画像またはアーカイブ本体をご参照ください。</p>
+  <p>一部ページには Claude による試験的なAI翻刻を併載しています。こちらも誤読を含みます。</p>
   <p>OCR: NDL古典籍OCR-Lite（国立国会図書館, CC BY 4.0）</p>
 </footer>
 
@@ -487,6 +504,11 @@
       (doc.pages || []).forEach(function (page) {
         (page.lines || []).forEach(function (line) {
           line._norm = normalize(line.t);
+          line.type = "ocr";
+        });
+        // AI翻刻行（座標なし）。存在しないページもあるので undefined 耐性を持たせる。
+        page._aiLines = (page.ai || []).map(function (t) {
+          return { t: t, _norm: normalize(t), type: "ai" };
         });
       });
     });
@@ -529,6 +551,10 @@
       (doc.pages || []).forEach(function (page) {
         var hitLines = [];
         (page.lines || []).forEach(function (line) {
+          var ok = terms.every(function (t) { return line._norm.indexOf(t) !== -1; });
+          if (ok) hitLines.push(line);
+        });
+        (page._aiLines || []).forEach(function (line) {
           var ok = terms.every(function (t) { return line._norm.indexOf(t) !== -1; });
           if (ok) hitLines.push(line);
         });
@@ -629,11 +655,18 @@
 
       var linesHtml = shown.map(function (line, lineIdx) {
         var lineId = "l" + hitIdx + "_" + lineIdx;
+        var isAi = line.type === "ai";
+        var badgeHtml = '<span class="line-badge' + (isAi ? " line-badge-ai" : "") + '">' +
+          (isAi ? "AI翻刻" : "OCR") + "</span>";
+        // AI翻刻行は座標情報がないため「行の画像を見る」ボタンは付けない。
+        var imgBtnHtml = isAi ? "" : (
+          '<button type="button" class="line-img-btn" data-line-id="' + lineId + '" data-line-idx="' + lineIdx + '">行の画像を見る</button>' +
+          '<div class="line-img-slot" id="slot_' + lineId + '" hidden></div>'
+        );
         return (
           "<li>" +
-          '<span class="line-text">' + highlightHTML(line.t || "", terms) + "</span>" +
-          '<button type="button" class="line-img-btn" data-line-id="' + lineId + '">行の画像を見る</button>' +
-          '<div class="line-img-slot" id="slot_' + lineId + '" hidden></div>' +
+          '<span class="line-text">' + badgeHtml + highlightHTML(line.t || "", terms) + "</span>" +
+          imgBtnHtml +
           "</li>"
         );
       }).join("") + (restCount > 0 ? '<li class="more-lines">他' + restCount + "行</li>" : "");
@@ -710,10 +743,9 @@
     var ul = btn.closest("ul.lines");
     var hitIdx = parseInt(ul.getAttribute("data-hit-idx"), 10);
     var hit = resultsEl.__pageHits[hitIdx];
-    var lineIdx = Array.prototype.indexOf.call(
-      ul.querySelectorAll(".line-img-btn"),
-      btn
-    );
+    // shown配列（=hitLinesの先頭部分）内での位置をdata属性で直接持たせておくことで、
+    // AI翻刻行（ボタンなし）が混在していても正しい行を特定できるようにする。
+    var lineIdx = parseInt(btn.getAttribute("data-line-idx"), 10);
     var line = hit.hitLines[lineIdx];
 
     if (slot.hasAttribute("hidden")) {

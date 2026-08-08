@@ -70,6 +70,17 @@ def load_page_lines(ocr_json_path: Path) -> list[dict]:
     return lines
 
 
+def load_ai_lines(ai_txt_path: Path) -> list[str]:
+    """AI翻刻（Claudeによる目視翻刻）。1行1列のプレーンテキスト。"""
+    if not ai_txt_path.exists():
+        return []
+    return [
+        line.strip()
+        for line in ai_txt_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def build_document(doc_id: str) -> dict:
     ddir = config.doc_dir(doc_id)
     manifest = json.loads((ddir / "manifest.json").read_text(encoding="utf-8"))
@@ -81,16 +92,18 @@ def build_document(doc_id: str) -> dict:
         lines = load_page_lines(ocr_path) if ocr_path.exists() else []
         if not ocr_path.exists():
             print(f"  警告: OCR結果なし {ocr_path.name}", file=sys.stderr)
-        pages.append(
-            {
-                "n": n,
-                "name": entry["name"],
-                "iiif": entry["service_base"],
-                "w": entry["width"],
-                "h": entry["height"],
-                "lines": lines,
-            }
-        )
+        page = {
+            "n": n,
+            "name": entry["name"],
+            "iiif": entry["service_base"],
+            "w": entry["width"],
+            "h": entry["height"],
+            "lines": lines,
+        }
+        ai_lines = load_ai_lines(ddir / "ai" / f"{entry['name']}.txt")
+        if ai_lines:
+            page["ai"] = ai_lines
+        pages.append(page)
 
     return {
         "id": doc_id,
