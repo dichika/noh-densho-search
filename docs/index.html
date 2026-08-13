@@ -319,30 +319,23 @@
   .overlay-body {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 4px;
+    position: relative;
+    overflow: hidden;
+    padding: 0;
   }
   .overlay-img-wrap {
-    position: relative;
-    width: 100%;
-    max-width: 720px;
-    min-height: 50vh;
-    display: flex;
-    justify-content: center;
-  }
-  .overlay-body img {
-    width: 100%;
-    max-width: 720px;
-    height: auto;
-    display: block;
-    transition: opacity 0.15s ease;
-  }
-  .overlay-body img.is-loading { opacity: 0.15; }
-  .overlay-line-highlight {
     position: absolute;
+    inset: 0;
+  }
+  .osd-viewer {
+    width: 100%;
+    height: 100%;
+    background: var(--overlay-bg);
+    touch-action: none;
+  }
+  /* OpenSeadragon が addOverlay() でこの要素をビューア内へ再配置し、
+     位置・サイズはビューポート座標に応じて自動更新する（CSSでは指定しない）。 */
+  .overlay-line-highlight {
     box-sizing: border-box;
     border: 2px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 25%, transparent);
@@ -361,11 +354,38 @@
     border-top-color: #f2ece0;
     border-radius: 50%;
     animation: overlay-spin 0.8s linear infinite;
+    z-index: 3;
   }
   .overlay-spinner[hidden] { display: none; }
   @keyframes overlay-spin {
     to { transform: translate(-50%, -50%) rotate(360deg); }
   }
+  .osd-controls {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .osd-control-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(20,17,14,0.55);
+    color: #f2ece0;
+    font-size: 1.1rem;
+    line-height: 1;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .osd-control-btn:active { background: rgba(20,17,14,0.8); }
   .overlay-transcript {
     flex: none;
     border-top: 1px solid rgba(255,255,255,0.18);
@@ -461,15 +481,6 @@
     .overlay-body {
       flex: 0 0 62%;
       max-width: 62%;
-      align-items: center;
-      overflow: auto;
-    }
-    .overlay-img-wrap {
-      max-width: 100%;
-      min-height: 0;
-    }
-    .overlay-body img {
-      max-width: 100%;
     }
     .overlay-transcript {
       flex: 1 1 auto;
@@ -545,9 +556,14 @@
   <div class="overlay-columns" id="overlayColumns">
     <div class="overlay-body" id="overlayBody">
       <div class="overlay-img-wrap">
+        <div id="osdViewer" class="osd-viewer"></div>
         <div class="overlay-spinner" id="overlaySpinner" hidden></div>
-        <img id="overlayImg" alt="">
         <div class="overlay-line-highlight" id="overlayLineHighlight" hidden></div>
+        <div class="osd-controls">
+          <button type="button" id="osdZoomInBtn" class="osd-control-btn" aria-label="拡大">＋</button>
+          <button type="button" id="osdZoomOutBtn" class="osd-control-btn" aria-label="縮小">−</button>
+          <button type="button" id="osdHomeBtn" class="osd-control-btn" aria-label="全体表示">⌂</button>
+        </div>
       </div>
     </div>
     <div class="overlay-transcript">
@@ -566,8 +582,10 @@
   <p>本文テキストは NDL古典籍OCR-Lite による機械翻刻であり、誤読を多く含みます。原典の確認には必ず画像またはアーカイブ本体をご参照ください。</p>
   <p>一部ページには Claude による試験的なAI翻刻を併載しています。こちらも誤読を含みます。</p>
   <p>OCR: NDL古典籍OCR-Lite（国立国会図書館, CC BY 4.0）</p>
+  <p>ビューア: OpenSeadragon（BSD-3-Clause）を使用しています。</p>
 </footer>
 
+<script src="./vendor/openseadragon/openseadragon.min.js"></script>
 <script>
 (function () {
   "use strict";
@@ -577,11 +595,10 @@
   var resultCountEl = document.getElementById("resultCount");
   var searchInput = document.getElementById("searchInput");
   var overlayEl = document.getElementById("overlay");
-  var overlayImg = document.getElementById("overlayImg");
+  var osdViewerEl = document.getElementById("osdViewer");
   var overlayTitle = document.getElementById("overlayTitle");
   var overlayViewerLink = document.getElementById("overlayViewerLink");
   var overlayCloseBtn = document.getElementById("overlayClose");
-  var overlayBody = document.getElementById("overlayBody");
   var overlaySpinner = document.getElementById("overlaySpinner");
   var overlayLineHighlight = document.getElementById("overlayLineHighlight");
   var overlayPrevBtn = document.getElementById("overlayPrevBtn");
@@ -589,8 +606,38 @@
   var overlayPageIndicator = document.getElementById("overlayPageIndicator");
   var overlayTranscriptToggle = document.getElementById("overlayTranscriptToggle");
   var overlayTranscriptBody = document.getElementById("overlayTranscriptBody");
+  var osdZoomInBtn = document.getElementById("osdZoomInBtn");
+  var osdZoomOutBtn = document.getElementById("osdZoomOutBtn");
+  var osdHomeBtn = document.getElementById("osdHomeBtn");
   var lastSearchTerms = [];
-  var overlayState = { doc: null, pages: null, index: -1, terms: [], loadToken: 0, highlightLineIdx: -1 };
+  var overlayState = { doc: null, pages: null, index: -1, terms: [], highlightLineIdx: -1 };
+
+  // OpenSeadragon ビューアはオーバーレイ内で1インスタンスを使い回す。
+  // ナビゲーションボタン画像は使わず、自前のHTMLボタン（osdZoomInBtn等）で操作する。
+  var viewer = OpenSeadragon({
+    element: osdViewerEl,
+    showNavigationControl: false,
+    showNavigator: false,
+    showSequenceControl: false,
+    visibilityRatio: 1,
+    constrainDuringPan: true,
+    minZoomImageRatio: 0.9,
+    maxZoomPixelRatio: 4,
+    zoomPerClick: 1.8,
+    zoomPerScroll: 1.2,
+    animationTime: 0.4,
+    crossOriginPolicy: "Anonymous",
+    gestureSettingsMouse: { clickToZoom: false, dblClickToZoom: true, scrollToZoom: true, dragToPan: true },
+    gestureSettingsTouch: { clickToZoom: false, dblClickToZoom: true, pinchToZoom: true, flickEnabled: true }
+  });
+  // デバッグ用（非表示タブでの動作検証などに使う）
+  window._osdViewer = viewer;
+  viewer.addHandler("open", function () {
+    overlaySpinner.setAttribute("hidden", "");
+  });
+  viewer.addHandler("open-failed", function () {
+    overlaySpinner.setAttribute("hidden", "");
+  });
 
   // ---------- 正規化 ----------
 
@@ -946,29 +993,20 @@
     return parts.join("");
   }
 
-  // ---------- OCR行クリックによる画像ハイライト ----------
+  // ---------- OCR行クリックによる画像ハイライト（OpenSeadragon overlay） ----------
 
-  function isWideOverlayLayout() {
-    return window.matchMedia("(min-width: 700px), (orientation: landscape)").matches;
-  }
-
-  // page.w/page.h（元画像ピクセル寸法）と、実際にレンダリングされた<img>の寸法との
-  // 比率でOCR行の矩形をスケーリングし、overlay-img-wrap基準の絶対座標として配置する。
+  // 元画像ピクセル座標の矩形をビューポート座標に変換し、OSDのoverlay APIで配置する。
+  // ズーム・パンが変化しても OpenSeadragon 側が自動的に追従して再配置してくれる。
   function positionLineHighlight(box) {
-    var page = overlayState.pages && overlayState.pages[overlayState.index];
-    if (!page || !page.w || !page.h) return false;
-    if (!overlayImg.offsetWidth || !overlayImg.offsetHeight) return false;
-    var scaleX = overlayImg.offsetWidth / page.w;
-    var scaleY = overlayImg.offsetHeight / page.h;
-    overlayLineHighlight.style.left = (overlayImg.offsetLeft + box[0] * scaleX) + "px";
-    overlayLineHighlight.style.top = (overlayImg.offsetTop + box[1] * scaleY) + "px";
-    overlayLineHighlight.style.width = (box[2] * scaleX) + "px";
-    overlayLineHighlight.style.height = (box[3] * scaleY) + "px";
+    var rect = viewer.viewport.imageToViewportRectangle(box[0], box[1], box[2], box[3]);
+    viewer.removeOverlay(overlayLineHighlight);
+    viewer.addOverlay(overlayLineHighlight, rect);
     return true;
   }
 
   function clearLineHighlight() {
     overlayState.highlightLineIdx = -1;
+    viewer.removeOverlay(overlayLineHighlight);
     overlayLineHighlight.setAttribute("hidden", "");
     var selected = overlayTranscriptBody.querySelector(".transcript-line.is-selected");
     if (selected) selected.classList.remove("is-selected");
@@ -990,21 +1028,8 @@
     lineEl.classList.add("is-selected");
     overlayState.highlightLineIdx = idx;
 
-    var ok = positionLineHighlight(line.b);
-    if (ok) {
-      overlayLineHighlight.removeAttribute("hidden");
-    } else {
-      // 画像がまだ読み込み中で寸法が確定していない場合は onload 側で再計算する。
-      overlayLineHighlight.setAttribute("hidden", "");
-    }
-
-    // ナローレイアウトでは翻刻パネルが画像の下にあるため、画像領域へスクロールする。
-    if (!isWideOverlayLayout()) {
-      var scrollTarget = ok ? overlayLineHighlight : overlayImg;
-      requestAnimationFrame(function () {
-        scrollTarget.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-      });
-    }
+    positionLineHighlight(line.b);
+    overlayLineHighlight.removeAttribute("hidden");
   }
 
   overlayTranscriptBody.addEventListener("click", function (e) {
@@ -1014,40 +1039,11 @@
     toggleLineHighlight(idx, lineEl);
   });
 
-  window.addEventListener("resize", function () {
-    if (overlayState.highlightLineIdx === -1) return;
-    if (overlayEl.hasAttribute("hidden")) return;
-    var page = overlayState.pages && overlayState.pages[overlayState.index];
-    var line = page && page.lines && page.lines[overlayState.highlightLineIdx];
-    if (line && Array.isArray(line.b)) {
-      positionLineHighlight(line.b);
-    }
-  });
-
-  // IIIF画像の読み込み中はスピナーを表示し、読み込み完了/失敗で消す。
-  // 連続してページ送りされた場合に古い読み込みの完了イベントが後から来ても
-  // 現在のコマの状態を壊さないよう、トークンで最新の読み込みだけを反映する。
+  // IIIF画像（info.json）の読み込み中はスピナーを表示し、'open'/'open-failed' で消す
+  // （ハンドラはビューア生成時に一度だけ登録済み）。
   function setOverlayImage(page) {
-    overlayState.loadToken++;
-    var token = overlayState.loadToken;
     overlaySpinner.removeAttribute("hidden");
-    overlayImg.classList.add("is-loading");
-    overlayImg.onload = function () {
-      if (token !== overlayState.loadToken) return;
-      overlaySpinner.setAttribute("hidden", "");
-      overlayImg.classList.remove("is-loading");
-      // 画像読み込み前にハイライトが選択されていた場合、寸法確定後に再計算する。
-      if (overlayState.highlightLineIdx !== -1) {
-        var curPage = overlayState.pages && overlayState.pages[overlayState.index];
-        var curLine = curPage && curPage.lines && curPage.lines[overlayState.highlightLineIdx];
-        if (curLine && Array.isArray(curLine.b) && positionLineHighlight(curLine.b)) {
-          overlayLineHighlight.removeAttribute("hidden");
-        }
-      }
-    };
-    overlayImg.onerror = overlayImg.onload;
-    overlayImg.alt = (overlayState.doc ? overlayState.doc.title : "") + " " + page.n + "コマ目";
-    overlayImg.src = page.iiif + "full/1600,/0/default.jpg";
+    viewer.open(page.iiif + "info.json");
   }
 
   function updateOverlayForCurrentPage() {
@@ -1060,6 +1056,7 @@
     overlayTranscriptBody.innerHTML = pageTranscriptHTML(page, overlayState.terms);
   }
 
+  // ページ送り時はズームをリセットする（viewer.open() が内部で goHome() し、全体表示に戻る）。
   function navigateOverlay(delta) {
     if (!overlayState.pages || overlayState.pages.length === 0) return;
     var next = overlayState.index + delta;
@@ -1083,17 +1080,17 @@
 
     overlayTitle.textContent = doc.title || "";
     overlayViewerLink.href = doc.viewerUrl || doc.detailUrl || "#";
-    updateOverlayForCurrentPage();
+
+    // OSDビューアが実寸を取れるよう、非表示解除を先に行ってから画像を開く。
     overlayEl.removeAttribute("hidden");
     document.body.classList.add("no-scroll");
+    updateOverlayForCurrentPage();
   }
 
   function closeOverlay() {
     overlayEl.setAttribute("hidden", "");
-    overlayImg.onload = null;
-    overlayImg.onerror = null;
-    overlayImg.src = "";
     clearLineHighlight();
+    viewer.close();
     document.body.classList.remove("no-scroll");
   }
 
@@ -1105,6 +1102,18 @@
   });
   overlayPrevBtn.addEventListener("click", function () { navigateOverlay(-1); });
   overlayNextBtn.addEventListener("click", function () { navigateOverlay(1); });
+
+  osdZoomInBtn.addEventListener("click", function () {
+    viewer.viewport.zoomBy(1.4);
+    viewer.viewport.applyConstraints();
+  });
+  osdZoomOutBtn.addEventListener("click", function () {
+    viewer.viewport.zoomBy(1 / 1.4);
+    viewer.viewport.applyConstraints();
+  });
+  osdHomeBtn.addEventListener("click", function () {
+    viewer.viewport.goHome();
+  });
 
   overlayTranscriptToggle.addEventListener("click", function () {
     var willOpen = overlayTranscriptBody.hasAttribute("hidden");
@@ -1128,24 +1137,8 @@
     }
   });
 
-  // スマホでの左右スワイプによるページ送り（水平移動量が閾値を超えたら送る簡易実装）
-  var touchStartX = null;
-  var touchStartY = null;
-  overlayBody.addEventListener("touchstart", function (e) {
-    if (e.touches.length !== 1) return;
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
-  overlayBody.addEventListener("touchend", function (e) {
-    if (touchStartX === null) return;
-    var touch = e.changedTouches[0];
-    var dx = touch.clientX - touchStartX;
-    var dy = touch.clientY - touchStartY;
-    touchStartX = null;
-    touchStartY = null;
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    navigateOverlay(dx < 0 ? 1 : -1);
-  });
+  // 左右スワイプによるページ送りは OpenSeadragon 標準のドラッグ＝パン操作と競合するため廃止。
+  // ページ送りは前/次ボタンと矢印キーで行う（公式ビューアと同じ操作体系）。
 
   // ---------- 起動 ----------
 
