@@ -282,34 +282,6 @@
     font-size: 1rem;
     cursor: pointer;
   }
-  .overlay-pagenav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 0 14px 8px;
-    flex: none;
-  }
-  .overlay-page-btn {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.4);
-    color: #f2ece0;
-    border-radius: 999px;
-    padding: 7px 14px;
-    font-size: 0.78rem;
-    font-family: inherit;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .overlay-page-btn:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
-  .overlay-page-indicator {
-    font-size: 0.76rem;
-    color: #cfc6b6;
-    white-space: nowrap;
-  }
   .overlay-columns {
     flex: 1 1 auto;
     min-height: 0;
@@ -368,6 +340,55 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  .overlay-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 4;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(20,17,14,0.45);
+    color: #f2ece0;
+    font-size: 1.3rem;
+    line-height: 1;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    transition: background 0.15s ease, opacity 0.15s ease;
+    touch-action: manipulation;
+  }
+  .overlay-nav-prev { left: 10px; }
+  .overlay-nav-next { right: 10px; }
+  .overlay-nav-btn:hover { background: rgba(20,17,14,0.7); }
+  .overlay-nav-btn:active { background: rgba(20,17,14,0.85); }
+  .overlay-nav-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    background: rgba(20,17,14,0.3);
+  }
+  .overlay-page-chip {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    background: rgba(20,17,14,0.55);
+    color: #f2ece0;
+    font-size: 0.72rem;
+    padding: 5px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    pointer-events: none;
   }
   .osd-control-btn {
     width: 36px;
@@ -548,17 +569,15 @@
     <div class="overlay-title" id="overlayTitle"></div>
     <button type="button" id="overlayClose" aria-label="閉じる">✕</button>
   </div>
-  <div class="overlay-pagenav">
-    <button type="button" id="overlayPrevBtn" class="overlay-page-btn">← 前のコマ</button>
-    <span class="overlay-page-indicator" id="overlayPageIndicator"></span>
-    <button type="button" id="overlayNextBtn" class="overlay-page-btn">次のコマ →</button>
-  </div>
   <div class="overlay-columns" id="overlayColumns">
     <div class="overlay-body" id="overlayBody">
       <div class="overlay-img-wrap">
         <div id="osdViewer" class="osd-viewer"></div>
         <div class="overlay-spinner" id="overlaySpinner" hidden></div>
         <div class="overlay-line-highlight" id="overlayLineHighlight" hidden></div>
+        <button type="button" id="overlayPrevBtn" class="overlay-nav-btn overlay-nav-prev" aria-label="前のコマ">←</button>
+        <button type="button" id="overlayNextBtn" class="overlay-nav-btn overlay-nav-next" aria-label="次のコマ">→</button>
+        <div class="overlay-page-chip" id="overlayPageIndicator"></div>
         <div class="osd-controls">
           <button type="button" id="osdZoomInBtn" class="osd-control-btn" aria-label="拡大">＋</button>
           <button type="button" id="osdZoomOutBtn" class="osd-control-btn" aria-label="縮小">−</button>
@@ -1102,6 +1121,14 @@
   });
   overlayPrevBtn.addEventListener("click", function () { navigateOverlay(-1); });
   overlayNextBtn.addEventListener("click", function () { navigateOverlay(1); });
+
+  // 画像上に重ねたコマ送りボタンなので、タップ/ドラッグ操作が OSD のパン・
+  // ダブルタップズームへ波及しないよう明示的に伝播を止めておく。
+  [overlayPrevBtn, overlayNextBtn].forEach(function (btn) {
+    ["pointerdown", "mousedown", "touchstart"].forEach(function (evtName) {
+      btn.addEventListener(evtName, function (e) { e.stopPropagation(); }, { passive: true });
+    });
+  });
 
   osdZoomInBtn.addEventListener("click", function () {
     viewer.viewport.zoomBy(1.4);
