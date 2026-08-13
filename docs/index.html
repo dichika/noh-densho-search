@@ -310,6 +310,12 @@
     color: #cfc6b6;
     white-space: nowrap;
   }
+  .overlay-columns {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
   .overlay-body {
     flex: 1 1 auto;
     min-height: 0;
@@ -374,6 +380,9 @@
     padding: 0 14px 14px;
   }
   .transcript-body[hidden] { display: none; }
+  .transcript-panel-header {
+    display: none;
+  }
   .transcript-line {
     font-size: 0.85rem;
     color: #f2ece0;
@@ -422,6 +431,55 @@
     border-radius: 999px;
   }
 
+  /* ワイドレイアウト: 画像の右隣に翻刻パネルを常時表示する */
+  @media (min-width: 700px), (orientation: landscape) {
+    .overlay-columns {
+      flex-direction: row;
+      min-height: 0;
+    }
+    .overlay-body {
+      flex: 0 0 62%;
+      max-width: 62%;
+      align-items: center;
+      overflow: auto;
+    }
+    .overlay-img-wrap {
+      max-width: 100%;
+      min-height: 0;
+    }
+    .overlay-body img {
+      max-width: 100%;
+    }
+    .overlay-transcript {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-top: none;
+      border-left: 1px solid rgba(255,255,255,0.18);
+    }
+    .transcript-toggle {
+      display: none;
+    }
+    .transcript-panel-header {
+      display: block;
+      flex: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #f2ece0;
+      padding: 12px 14px 6px;
+    }
+    .transcript-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+    }
+    /* パネルは常時展開しておく（JS側の hidden 属性トグルはそのままでよい） */
+    .transcript-body[hidden] {
+      display: block;
+    }
+  }
+
   footer {
     max-width: 720px;
     margin: 24px auto 0;
@@ -463,15 +521,18 @@
     <span class="overlay-page-indicator" id="overlayPageIndicator"></span>
     <button type="button" id="overlayNextBtn" class="overlay-page-btn">次のコマ →</button>
   </div>
-  <div class="overlay-body" id="overlayBody">
-    <div class="overlay-img-wrap">
-      <div class="overlay-spinner" id="overlaySpinner" hidden></div>
-      <img id="overlayImg" alt="">
+  <div class="overlay-columns" id="overlayColumns">
+    <div class="overlay-body" id="overlayBody">
+      <div class="overlay-img-wrap">
+        <div class="overlay-spinner" id="overlaySpinner" hidden></div>
+        <img id="overlayImg" alt="">
+      </div>
     </div>
-  </div>
-  <div class="overlay-transcript">
-    <button type="button" id="overlayTranscriptToggle" class="transcript-toggle" aria-expanded="false">このコマの翻刻を見る ▾</button>
-    <div class="transcript-body" id="overlayTranscriptBody" hidden></div>
+    <div class="overlay-transcript">
+      <button type="button" id="overlayTranscriptToggle" class="transcript-toggle" aria-expanded="false">このコマの翻刻を見る ▾</button>
+      <div class="transcript-panel-header">このコマの翻刻</div>
+      <div class="transcript-body" id="overlayTranscriptBody" hidden></div>
+    </div>
   </div>
   <div class="overlay-footer">
     <a id="overlayViewerLink" href="#" target="_blank" rel="noopener noreferrer">公式ビューアで見る ↗</a>
